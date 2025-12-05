@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuenta Atrás Papá Noel & Player</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Mountains+of+Christmas:wght@700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #000;
+        }
+        
+        .font-christmas {
+            font-family: 'Mountains of Christmas', cursive;
+        }
+
+        .text-glow {
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9), 0 0 10px rgba(255, 215, 0, 0.6);
+        }
+
+        /* Panel Glassmorphism */
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .pulse-text {
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+            50% { transform: scale(1.1); text-shadow: 0 0 20px rgba(255, 215, 0, 1); }
+        }
+
+        /* Animación texto */
+        .scrolling-text-container {
+            overflow: hidden;
+            white-space: nowrap;
+            mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+        }
+        
+        .scrolling-text {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scroll-left 15s linear infinite;
+        }
+
+        @keyframes scroll-left {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Video Fondo */
+        .video-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .video-background video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 1s ease; /* Transición suave al cambiar */
+        }
+
+        /* Control Mode Styles */
+        .btn-control {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s;
+        }
+        .btn-control:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Playlist Modal Styles */
+        .playlist-modal {
+            background: rgba(20, 20, 20, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .playlist-item {
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .playlist-item:active {
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+        /* Color específico para el track de progreso */
+        #ctrl-seek::-webkit-slider-runnable-track {
+            background: linear-gradient(to right, #ef4444 var(--progress, 0%), rgba(255,255,255,0.2) var(--progress, 0%));
+        }
+    </style>
+</head>
+<body class="h-screen w-screen relative select-none text-white overflow-hidden">
+
+    <!-- ========================================== -->
+    <!-- VISTA TV (DISPLAY) -->
+    <!-- ========================================== -->
+    <div id="tv-view" class="w-full h-full relative hidden">
+        
+        <!-- Video Fondo -->
+        <div class="video-background">
+            <video autoplay muted loop playsinline id="bg-video">
+                <source src="https://logise1.github.io/xmas/video1x.mp4" type="video/mp4">
+            </video>
+        </div>
+
+        <!-- Capa Oscura -->
+        <div class="absolute top-0 left-0 w-full h-full z-0 pointer-events-none" 
+             style="background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.6) 100%);">
+        </div>
+
+        <!-- Botón Pantalla Completa -->
+        <button id="fullscreen-btn" class="absolute top-8 right-8 z-30 p-3 glass-panel hover:bg-white/10 text-white transition-all rounded-full group" title="Pantalla Completa">
+            <i id="fs-icon-max" data-lucide="maximize" class="w-6 h-6 group-hover:scale-110 transition-transform"></i>
+            <i id="fs-icon-min" data-lucide="minimize" class="w-6 h-6 group-hover:scale-110 transition-transform hidden"></i>
+        </button>
+
+        <!-- QR Code (Abajo Izquierda) -->
+        <div class="absolute bottom-8 left-8 z-20 flex flex-col items-center gap-2 animate-fade-in">
+            <div class="glass-panel p-3 bg-white/10">
+                <img id="qr-code-img" src="" alt="Scan to Control" class="w-32 h-32 rounded-lg mix-blend-screen opacity-90" style="image-rendering: pixelated;">
+            </div>
+            <p class="text-xs font-mono text-white/70 uppercase tracking-widest text-glow">Escanear para Controlar</p>
+        </div>
+
+        <!-- Panel Principal (Abajo Derecha) -->
+        <div class="absolute bottom-8 right-8 z-20 flex flex-col gap-4 items-end w-full max-w-xs">
+            
+            <!-- Contador -->
+            <div class="glass-panel p-5 w-full">
+                <div id="countdown-container" class="grid grid-cols-4 gap-3 text-center">
+                    <div class="flex flex-col items-center"><span id="days" class="text-3xl font-bold text-glow leading-none">00</span><span class="text-[10px] uppercase tracking-wider text-white/70 mt-1">Días</span></div>
+                    <div class="flex flex-col items-center"><span id="hours" class="text-3xl font-bold text-glow leading-none">00</span><span class="text-[10px] uppercase tracking-wider text-white/70 mt-1">Hrs</span></div>
+                    <div class="flex flex-col items-center"><span id="minutes" class="text-3xl font-bold text-glow leading-none">00</span><span class="text-[10px] uppercase tracking-wider text-white/70 mt-1">Min</span></div>
+                    <div class="flex flex-col items-center"><span id="seconds" class="text-3xl font-bold text-yellow-400 text-glow pulse-text leading-none">00</span><span class="text-[10px] uppercase tracking-wider text-white/70 mt-1">Seg</span></div>
+                </div>
+                <div id="santa-arrived" class="hidden text-center"><h2 class="font-christmas text-3xl text-yellow-300 text-glow animate-ping">¡FELIZ NAVIDAD!</h2></div>
+            </div>
+
+            <!-- Reproductor -->
+            <div class="glass-panel p-4 w-full flex flex-col gap-3">
+                <div class="flex items-center gap-3 overflow-hidden h-6 relative">
+                    <i data-lucide="music" class="w-4 h-4 text-red-400 flex-shrink-0"></i>
+                    <div class="scrolling-text-container flex-grow">
+                        <span id="song-title" class="scrolling-text text-sm font-medium text-white/90">Esperando...</span>
+                    </div>
+                </div>
+                <!-- Barra de progreso visual en TV (solo visual) -->
+                <div class="w-full bg-white/20 h-1 rounded-full overflow-hidden mt-1">
+                    <div id="tv-progress-bar" class="h-full bg-red-500 w-0 transition-all duration-1000 linear"></div>
+                </div>
+                <!-- Estado Visual del Reproductor -->
+                <div class="flex justify-between items-center text-xs text-white/50 font-mono mt-1">
+                    <span id="player-status">LISTO</span>
+                    <div class="flex gap-1">
+                        <span class="w-1 h-1 rounded-full bg-red-500 animate-pulse"></span>
+                        <span class="w-1 h-1 rounded-full bg-green-500 animate-pulse delay-75"></span>
+                        <span class="w-1 h-1 rounded-full bg-blue-500 animate-pulse delay-150"></span>
+                    </div>
+                </div>
+                <!-- Audio Oculto -->
+                <audio id="audio-player"></audio>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VISTA MANDO (CONTROL) -->
+    <!-- ========================================== -->
+    <div id="control-view" class="w-full h-full hidden bg-gray-900 flex flex-col items-center justify-center p-6 relative">
+        <!-- Fondo animado simple -->
+        <div class="absolute inset-0 overflow-hidden z-0 opacity-30">
+            <div class="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle,rgba(220,38,38,0.3)_0%,transparent_50%)] animate-pulse"></div>
+        </div>
+
+        <div class="z-10 w-full max-w-sm flex flex-col gap-5 h-full justify-center overflow-y-auto py-4">
+            <div class="text-center mb-1 flex-shrink-0">
+                <i data-lucide="cast" class="w-8 h-8 text-red-500 mx-auto mb-1"></i>
+                <h1 class="font-christmas text-2xl text-white">Mando Navidad</h1>
+            </div>
+
+            <div class="glass-panel p-5 flex flex-col gap-5 bg-black/40">
+                <!-- Info Canción -->
+                <div class="text-center">
+                    <p class="text-[10px] text-red-400 uppercase tracking-widest mb-1">Sonando ahora</p>
+                    <p id="ctrl-song-name" class="font-medium text-base truncate">...</p>
+                </div>
+
+                <!-- SLIDER DE TIEMPO (SEEK) -->
+                <div class="flex flex-col gap-1">
+                    <div class="flex justify-between text-[10px] text-white/50 font-mono">
+                        <span id="ctrl-time-current">0:00</span>
+                        <span id="ctrl-time-total">0:00</span>
+                    </div>
+                    <input type="range" id="ctrl-seek" min="0" max="100" value="0" step="1" class="w-full accent-red-500">
+                </div>
+
+                <!-- Botones Grandes -->
+                <div class="flex justify-center items-center gap-6">
+                    <button id="ctrl-prev" class="btn-control w-12 h-12 rounded-full flex items-center justify-center text-white">
+                        <i data-lucide="skip-back" class="w-6 h-6 fill-current"></i>
+                    </button>
+                    
+                    <button id="ctrl-play" class="btn-control w-16 h-16 rounded-full flex items-center justify-center bg-red-600/20 border-red-500/50 text-white shadow-[0_0_20px_rgba(220,38,38,0.3)]">
+                        <i id="ctrl-play-icon" data-lucide="play" class="w-8 h-8 fill-current"></i>
+                        <i id="ctrl-pause-icon" data-lucide="pause" class="w-8 h-8 fill-current hidden"></i>
+                    </button>
+                    
+                    <button id="ctrl-next" class="btn-control w-12 h-12 rounded-full flex items-center justify-center text-white">
+                        <i data-lucide="skip-forward" class="w-6 h-6 fill-current"></i>
+                    </button>
+                </div>
+
+                <!-- SLIDER VOLUMEN -->
+                <div class="flex items-center gap-3 px-2">
+                    <i data-lucide="volume-2" class="w-4 h-4 text-white/50"></i>
+                    <input type="range" id="ctrl-volume" min="0" max="100" value="100" class="w-full accent-white">
+                </div>
+
+                <!-- SELECTOR DE FONDO -->
+                <div class="border-t border-white/10 pt-3">
+                    <p class="text-[10px] text-white/40 uppercase tracking-widest text-center mb-2">Ambiente TV</p>
+                    <div class="grid grid-cols-5 gap-2">
+                        <!-- Video 1 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video1x.mp4">
+                            <i data-lucide="monitor" class="w-3 h-3 text-red-400"></i>
+                            <span class="text-[10px]">1</span>
+                        </button>
+                        <!-- Video 2 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video2x.mp4">
+                            <i data-lucide="snowflake" class="w-3 h-3 text-blue-400"></i>
+                            <span class="text-[10px]">2</span>
+                        </button>
+                        <!-- Video 3 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video3x.mp4">
+                            <i data-lucide="flame" class="w-3 h-3 text-orange-400"></i>
+                            <span class="text-[10px]">3</span>
+                        </button>
+                        <!-- Video 4 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video4x.mp4">
+                            <i data-lucide="sparkles" class="w-3 h-3 text-yellow-400"></i>
+                            <span class="text-[10px]">4</span>
+                        </button>
+                        <!-- Video 5 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video5x.mp4">
+                            <i data-lucide="gift" class="w-3 h-3 text-pink-400"></i>
+                            <span class="text-[10px]">5</span>
+                        </button>
+                        <!-- Video 6 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video6x.mp4">
+                            <i data-lucide="trees" class="w-3 h-3 text-green-400"></i>
+                            <span class="text-[10px]">6</span>
+                        </button>
+                        <!-- Video 7 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video7x.mp4">
+                            <i data-lucide="moon" class="w-3 h-3 text-indigo-400"></i>
+                            <span class="text-[10px]">7</span>
+                        </button>
+                        <!-- Video 8 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video8x.mp4">
+                            <i data-lucide="music" class="w-3 h-3 text-purple-400"></i>
+                            <span class="text-[10px]">8</span>
+                        </button>
+                        <!-- Video 9 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video9x.mp4">
+                            <i data-lucide="heart" class="w-3 h-3 text-red-500"></i>
+                            <span class="text-[10px]">9</span>
+                        </button>
+                        <!-- Video 10 -->
+                        <button class="bg-btn-bg bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg py-2 text-xs flex flex-col items-center gap-1 transition-colors" data-bg="video10x.mp4">
+                            <i data-lucide="party-popper" class="w-3 h-3 text-yellow-300"></i>
+                            <span class="text-[10px]">10</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Botón Abrir Lista -->
+                <button id="ctrl-list-btn" class="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/20 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="list-music" class="w-3 h-3"></i>
+                    Ver Lista
+                </button>
+            </div>
+
+            <div class="text-center mt-2 flex-shrink-0">
+                <button id="ctrl-sync" class="text-[10px] text-white/30 hover:text-white transition-colors flex items-center justify-center gap-2 mx-auto">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Resincronizar
+                </button>
+            </div>
+        </div>
+
+        <!-- POPUP LISTA (OCULTO) -->
+        <div id="playlist-modal" class="fixed inset-0 z-50 playlist-modal hidden flex flex-col">
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-black/40">
+                <h2 class="font-christmas text-2xl">Canciones</h2>
+                <button id="close-list-btn" class="p-2 hover:bg-white/10 rounded-full">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div id="playlist-content" class="flex-1 overflow-y-auto p-4 space-y-1">
+                <!-- Se rellena con JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGICA FIREBASE Y APP -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // --- CONFIG ---
+        const firebaseConfig = {
+            databaseURL: "https://hello-74404-default-rtdb.europe-west1.firebasedatabase.app/",
+        };
+
+        // --- PLAYLIST DATA ---
+        const baseURL = "https://logise1.github.io/xmas/";
+        const playlistFiles = [
+            "01 - Dean Martin - Let It Snow! Let It Snow! Let It Snow! (Official Video).mp3",
+            "02 - Dean Martin - Silver Bells (Official Lyric Video).mp3",
+            "03 - Dean Martin - It's Beginning To Look A Lot Like Christmas (Official Lyric Video).mp3",
+            "04 - Dean Martin - Silver Bells (Official Animated Music Video).mp3",
+            "05 - Dean Martin - The Dean Martin Christmas Album (Full Album).mp3",
+            "06 - Dean Martin - Baby, It's Cold Outside (Lyric Video).mp3",
+            "07 - Dean Martin – It's Beginning To Look A Lot Like Christmas (Official Music Video).mp3",
+            "08 - Dean Martin - White Christmas (Visualizer).mp3",
+            "09 - Dean Martin - A Marshmallow World (Official Lyric Video).mp3",
+            "10 - Dean Martin - Silent Night World (Official Visualizer).mp3",
+            "11 - Dean Martin - I'll Be Home for Christmas (Official Visualizer).mp3",
+            "12 - Dean Martin - Blue Christmas (Official Lyric Video).mp3",
+            "13 - Dean Martin - Winter Wonderland (Official Lyric Video).mp3",
+            "14 - Dean Martin - Jingle Bells (Official Lyric Video).mp3",
+            "15 - The Dean Martin Christmas - Full Album (Official Visualizer).mp3",
+            "16 - Dean Martin - Winter Wonderland (Visualizer).mp3",
+            "17 - Dean Martin - The Christmas Blues (Visualizer).mp3",
+            "18 - Dean Martin - It Won't Cool Off (Visualizer).mp3",
+            "19 - Dean Martin - A Winter Romance (Visualizer).mp3",
+            "20 - Dean Martin - Brahms' Lullaby (Visualizer).mp3",
+            "21 - Dean Martin - I've Got My Love To Keep Me Warm (Official Music Video).mp3",
+            "22 - Dean Martin - Rudolph, The Red-Nosed Reindeer (Visualizer).mp3",
+            "23 - Dean Martin - Out In The Cold Again.mp3",
+            "24 - Dean Martin - Let It Snow! Let It Snow! Let It Snow! (Official Lyric Video).mp3",
+            "25 - Dean Martin Best Christmas Songs ｜ Yule Log Visualizer.mp3",
+            "Ariana Grande - Santa Tell Me (Official Video).mp3",
+            "Destiny's Child - 8 Days of Christmas (Official HD Video).mp3",
+            "Donny Hathaway - This Christmas (Official Music Video).mp3",
+            "Eartha Kitt - Santa Baby (Official Music Video).mp3",
+            "Ed Sheeran & Elton John - Merry Christmas [Official Video].mp3",
+            "Fairytale of New York (edit) (feat. Kirsty MacColl).mp3",
+            "Frank Sinatra - Jingle Bells (Official Music Video).mp3",
+            "Jamie Cullum, Kansas Smitty's - Winter Wonderland.mp3",
+            "Justin Bieber - Mistletoe (Official Music Video).mp3",
+            "Leona Lewis - One More Sleep (Official Video).mp3",
+            "Mariah Carey - All I Want for Christmas Is You (Official Unreleased Video Footage).mp3",
+            "Olivia Dean - The Christmas Song (Live At Westminster Abbey).mp3",
+            "Shakin' Stevens - Merry Christmas Everyone (Official 4K Video).mp3",
+            "Shawn Mendes, Camila Cabello - The Christmas Song.mp3",
+            "Sia - Snowman [Official Video].mp3",
+            "The Christmas Song (Chestnuts Roasting On An Open Fire) (Duet with John Legend).mp3",
+            "Wham! - The Making of 'Last Christmas' (Vevo Footnotes).mp3"
+        ];
+        
+        const playlist = playlistFiles.map(file => ({
+            title: file.replace('.mp3', ''),
+            src: baseURL + encodeURIComponent(file)
+        }));
+
+        // --- INICIALIZAR ---
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        
+        // Detectar modo
+        const urlParams = new URLSearchParams(window.location.search);
+        const isControlMode = urlParams.has('control');
+        const sessionId = urlParams.get('id') || Math.random().toString(36).substr(2, 9);
+
+        // Referencia a la sesión actual en DB
+        const sessionRef = ref(db, 'xmas_sessions/' + sessionId);
+
+        // Formato tiempo (MM:SS)
+        const fmtTime = (s) => {
+            if(isNaN(s)) return "0:00";
+            const min = Math.floor(s / 60);
+            const sec = Math.floor(s % 60);
+            return `${min}:${sec < 10 ? '0'+sec : sec}`;
+        }
+
+        if (isControlMode) {
+            setupControlMode();
+        } else {
+            setupTVMode();
+        }
+
+        // --- MODO TV ---
+        function setupTVMode() {
+            document.getElementById('tv-view').classList.remove('hidden');
+            lucide.createIcons();
+            startCountdown();
+
+            const currentUrl = window.location.href.split('?')[0];
+            const controlUrl = `${currentUrl}?control=true&id=${sessionId}`;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&bgcolor=000&color=fff&data=${encodeURIComponent(controlUrl)}`;
+            document.getElementById('qr-code-img').src = qrUrl;
+
+            // Lógica Pantalla Completa
+            const fsBtn = document.getElementById('fullscreen-btn');
+            const iconMax = document.getElementById('fs-icon-max');
+            const iconMin = document.getElementById('fs-icon-min');
+
+            fsBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(e => console.log(e));
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    iconMax.classList.add('hidden');
+                    iconMin.classList.remove('hidden');
+                } else {
+                    iconMax.classList.remove('hidden');
+                    iconMin.classList.add('hidden');
+                }
+            });
+
+            // Lógica Reproductor TV
+            const audioPlayer = document.getElementById('audio-player');
+            const songTitleEl = document.getElementById('song-title');
+            const playerStatus = document.getElementById('player-status');
+            const tvProgressBar = document.getElementById('tv-progress-bar');
+            const videoBackground = document.getElementById('bg-video');
+            
+            let currentTrackIndex = 0;
+            let lastProcessedCommandTs = 0;
+            let lastUpdateToFirebase = 0;
+
+            function playTrack(index) {
+                if (index < 0) index = playlist.length - 1;
+                if (index >= playlist.length) index = 0;
+                currentTrackIndex = index;
+                
+                audioPlayer.src = playlist[currentTrackIndex].src;
+                songTitleEl.innerText = playlist[currentTrackIndex].title;
+                playerStatus.innerText = "REPRODUCIENDO";
+                
+                songTitleEl.classList.remove('scrolling-text');
+                void songTitleEl.offsetWidth;
+                songTitleEl.classList.add('scrolling-text');
+
+                audioPlayer.play().catch(e => {
+                    console.log("Autoplay bloqueado");
+                    playerStatus.innerText = "ESPERANDO PLAY";
+                });
+
+                // Resetear volumen al cargar (opcional)
+                audioPlayer.volume = 1.0; 
+
+                update(sessionRef, {
+                    currentSong: playlist[currentTrackIndex].title,
+                    isPlaying: true,
+                    // Reiniciar estado de tiempo al cambiar canción
+                    status: {
+                        duration: 0,
+                        currentTime: 0
+                    }
+                });
+            }
+
+            // Actualizar DB con el tiempo actual (THROTTLED para no gastar Firebase)
+            // Solo actualiza cada 4 segundos
+            audioPlayer.addEventListener('timeupdate', () => {
+                const pct = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+                tvProgressBar.style.width = pct + "%";
+
+                const now = Date.now();
+                if (now - lastUpdateToFirebase > 4000) {
+                    lastUpdateToFirebase = now;
+                    update(sessionRef, {
+                        status: {
+                            currentTime: Math.floor(audioPlayer.currentTime),
+                            duration: Math.floor(audioPlayer.duration || 0)
+                        }
+                    });
+                }
+            });
+
+            // Escuchar comandos desde Firebase
+            onValue(sessionRef, (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                if (data.command && data.command.ts > lastProcessedCommandTs) {
+                    lastProcessedCommandTs = data.command.ts;
+
+                    if (data.command.type === 'next') playTrack(currentTrackIndex + 1);
+                    if (data.command.type === 'prev') playTrack(currentTrackIndex - 1);
+                    
+                    if (data.command.type === 'jump' && typeof data.command.value === 'number') {
+                        playTrack(data.command.value);
+                    }
+
+                    if (data.command.type === 'play') {
+                        audioPlayer.play();
+                        playerStatus.innerText = "REPRODUCIENDO";
+                        update(sessionRef, { isPlaying: true });
+                    }
+                    if (data.command.type === 'pause') {
+                        audioPlayer.pause();
+                        playerStatus.innerText = "PAUSADO";
+                        update(sessionRef, { isPlaying: false });
+                    }
+
+                    // Comando SEEK (mover la canción)
+                    if (data.command.type === 'seek') {
+                        audioPlayer.currentTime = data.command.value;
+                        // Forzar actualización inmediata a Firebase para que el mando sepa que cambió
+                        update(sessionRef, {
+                            status: {
+                                currentTime: Math.floor(audioPlayer.currentTime),
+                                duration: Math.floor(audioPlayer.duration || 0)
+                            }
+                        });
+                    }
+
+                    // Comando VOLUME
+                    if (data.command.type === 'volume') {
+                        audioPlayer.volume = data.command.value;
+                    }
+
+                    // NUEVO: Comando FONDO
+                    if (data.command.type === 'changeBackground') {
+                        const newSrc = baseURL + data.command.value;
+                        if (videoBackground.src !== newSrc) {
+                            videoBackground.src = newSrc;
+                            videoBackground.play().catch(e => console.log("Video autoplay prevented"));
+                        }
+                    }
+                }
+            });
+
+            audioPlayer.addEventListener('ended', () => {
+                playTrack(currentTrackIndex + 1);
+            });
+
+            // Inicializar
+            update(sessionRef, {
+                currentSong: playlist[0].title,
+                isPlaying: false
+            });
+            songTitleEl.innerText = playlist[0].title;
+            audioPlayer.src = playlist[0].src;
+
+            document.body.addEventListener('click', () => {
+                if (videoBackground.paused) videoBackground.play();
+                if (audioPlayer.paused) audioPlayer.play();
+            });
+        }
+
+        // --- MODO MANDO ---
+        function setupControlMode() {
+            document.getElementById('control-view').classList.remove('hidden');
+            lucide.createIcons();
+
+            const btnPlay = document.getElementById('ctrl-play');
+            const btnNext = document.getElementById('ctrl-next');
+            const btnPrev = document.getElementById('ctrl-prev');
+            const songNameDisplay = document.getElementById('ctrl-song-name');
+            const playIcon = document.getElementById('ctrl-play-icon');
+            const pauseIcon = document.getElementById('ctrl-pause-icon');
+            const btnSync = document.getElementById('ctrl-sync');
+            
+            // Sliders y textos
+            const seekSlider = document.getElementById('ctrl-seek');
+            const volumeSlider = document.getElementById('ctrl-volume');
+            const timeCurrentDisplay = document.getElementById('ctrl-time-current');
+            const timeTotalDisplay = document.getElementById('ctrl-time-total');
+
+            // Lista y Fondos
+            const btnList = document.getElementById('ctrl-list-btn');
+            const modalList = document.getElementById('playlist-modal');
+            const closeListBtn = document.getElementById('close-list-btn');
+            const listContent = document.getElementById('playlist-content');
+            const bgButtons = document.querySelectorAll('button[data-bg]');
+
+            let isPlayingLocal = false;
+            let localDuration = 0;
+            let localCurrentTime = 0;
+            let isDraggingSeek = false; // Flag para no actualizar slider mientras el usuario lo mueve
+
+            // Enviar comandos
+            function sendCommand(type, value = null) {
+                update(sessionRef, {
+                    command: {
+                        type: type,
+                        value: value,
+                        ts: Date.now()
+                    }
+                });
+            }
+
+            // Listener Principal de Firebase
+            onValue(sessionRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    if (data.currentSong) songNameDisplay.innerText = data.currentSong;
+                    isPlayingLocal = data.isPlaying;
+                    
+                    // Actualizar iconos play/pause
+                    if (isPlayingLocal) {
+                        playIcon.classList.add('hidden');
+                        pauseIcon.classList.remove('hidden');
+                    } else {
+                        playIcon.classList.remove('hidden');
+                        pauseIcon.classList.add('hidden');
+                    }
+
+                    // Actualizar Datos de Tiempo (si existen)
+                    if (data.status) {
+                        localDuration = data.status.duration || 0;
+                        // Solo actualizamos el tiempo local desde Firebase si NO estamos arrastrando
+                        // Y si hay una diferencia significativa (para evitar saltos raros)
+                        if (!isDraggingSeek) {
+                            localCurrentTime = data.status.currentTime || 0;
+                            updateSeekUI();
+                        }
+                    }
+                }
+            });
+
+            // Función para actualizar UI del Seek
+            function updateSeekUI() {
+                timeCurrentDisplay.innerText = fmtTime(localCurrentTime);
+                timeTotalDisplay.innerText = fmtTime(localDuration);
+                
+                // Actualizar posición slider
+                seekSlider.max = localDuration;
+                seekSlider.value = localCurrentTime;
+                
+                // Actualizar color de progreso del slider (truco CSS variable)
+                const percent = localDuration > 0 ? (localCurrentTime / localDuration) * 100 : 0;
+                seekSlider.style.setProperty('--progress', percent + '%');
+            }
+
+            // SIMULACIÓN LOCAL DEL TIEMPO:
+            // Para no pedirle a Firebase la hora cada segundo, la simulamos en el cliente
+            setInterval(() => {
+                if (isPlayingLocal && !isDraggingSeek && localDuration > 0) {
+                    localCurrentTime++;
+                    if (localCurrentTime > localDuration) localCurrentTime = localDuration;
+                    updateSeekUI();
+                }
+            }, 1000);
+
+            // --- EVENTOS DEL SEEK SLIDER ---
+            
+            // 1. Cuando empieza a arrastrar (mousedown/touchstart): Parar actualización automática
+            seekSlider.addEventListener('input', (e) => {
+                isDraggingSeek = true;
+                localCurrentTime = parseInt(e.target.value);
+                timeCurrentDisplay.innerText = fmtTime(localCurrentTime);
+                // Actualizar visualmente la barra mientras arrastras
+                const percent = localDuration > 0 ? (localCurrentTime / localDuration) * 100 : 0;
+                seekSlider.style.setProperty('--progress', percent + '%');
+            });
+
+            // 2. Cuando suelta (change): Enviar comando a Firebase (ahorra ancho de banda)
+            seekSlider.addEventListener('change', (e) => {
+                isDraggingSeek = false;
+                const newTime = parseInt(e.target.value);
+                sendCommand('seek', newTime);
+            });
+
+            // --- EVENTOS DEL VOLUMEN ---
+            volumeSlider.addEventListener('change', (e) => {
+                // El slider es 0-100, el audio es 0.0-1.0
+                const vol = parseInt(e.target.value) / 100;
+                sendCommand('volume', vol);
+            });
+
+            // --- BOTONES DE FONDO ---
+            bgButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const videoFile = btn.getAttribute('data-bg');
+                    // Efecto visual de pulsado
+                    btn.classList.add('bg-white/20');
+                    setTimeout(() => btn.classList.remove('bg-white/20'), 200);
+                    
+                    sendCommand('changeBackground', videoFile);
+                });
+            });
+
+            // --- BOTONES CONTROL ---
+            btnNext.addEventListener('click', () => {
+                btnNext.style.transform = "scale(0.9)";
+                setTimeout(() => btnNext.style.transform = "scale(1)", 100);
+                sendCommand('next');
+            });
+
+            btnPrev.addEventListener('click', () => {
+                btnPrev.style.transform = "scale(0.9)";
+                setTimeout(() => btnPrev.style.transform = "scale(1)", 100);
+                sendCommand('prev');
+            });
+
+            btnPlay.addEventListener('click', () => {
+                if (isPlayingLocal) sendCommand('pause');
+                else sendCommand('play');
+            });
+            
+            btnSync.addEventListener('click', () => window.location.reload());
+
+            // --- LISTA ---
+            listContent.innerHTML = '';
+            playlist.forEach((track, index) => {
+                const item = document.createElement('div');
+                item.className = 'playlist-item p-4 text-sm text-white/90 cursor-pointer flex items-center gap-3';
+                item.innerHTML = `
+                    <span class="text-white/30 font-mono w-6">${index + 1}</span>
+                    <span class="truncate flex-1">${track.title}</span>
+                    <i data-lucide="play" class="w-4 h-4 text-white/30"></i>
+                `;
+                item.addEventListener('click', () => {
+                    sendCommand('jump', index);
+                    modalList.classList.add('hidden');
+                });
+                listContent.appendChild(item);
+            });
+            lucide.createIcons();
+
+            btnList.addEventListener('click', () => modalList.classList.remove('hidden'));
+            closeListBtn.addEventListener('click', () => modalList.classList.add('hidden'));
+        }
+
+        // --- UTILIDADES ---
+        function startCountdown() {
+            function updateTimer() {
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                let targetDate = new Date(currentYear, 11, 24, 11, 0, 0);
+                if (now > targetDate) targetDate = new Date(currentYear + 1, 11, 24, 11, 0, 0);
+
+                const diff = targetDate - now;
+
+                if (diff <= 0) {
+                    document.getElementById('countdown-container').style.display = 'none';
+                    document.getElementById('santa-arrived').classList.remove('hidden');
+                    return;
+                }
+
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+                document.getElementById('days').innerText = d < 10 ? '0' + d : d;
+                document.getElementById('hours').innerText = h < 10 ? '0' + h : h;
+                document.getElementById('minutes').innerText = m < 10 ? '0' + m : m;
+                document.getElementById('seconds').innerText = s < 10 ? '0' + s : s;
+            }
+            setInterval(updateTimer, 1000);
+            updateTimer();
+        }
+    </script>
+</body>
+</html>
